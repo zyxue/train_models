@@ -5,7 +5,7 @@ import pandas as pd
 
 from sklearn.preprocessing import LabelEncoder, StandardScaler, label_binarize
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, GridSearchCV
 from sklearn import metrics
 
 
@@ -61,11 +61,11 @@ def preprocess(df_trva, df_test, label_group):
     df_trva['label_enc'] = lbenc.transform(df_trva.label)
     df_test['label_enc'] = lbenc.transform(df_test.label)
 
-    classes = np.sort(df_trva.label.unique())
+    classes = np.sort(df_trva.label_enc.unique())
     df_trva['label_bin'] = label_binarize(
-        df_trva.label, classes=classes).tolist()
+        df_trva.label_enc, classes=classes).tolist()
     df_test['label_bin'] = label_binarize(
-        df_test.label, classes=classes).tolist()
+        df_test.label_enc, classes=classes).tolist()
 
     sscaler = StandardScaler()
     sscaler.fit(df_trva[RSEM_GENES])
@@ -138,3 +138,41 @@ def calc_cv_num_genes(df_trva, c_val):
 
 def calc_cv_num_genes_wrapper(args):
     return calc_cv_num_genes(*args)
+
+
+def cv_master(df_trva, Cs):
+    """for large master models"""
+    # random_state = np.random.randint(0, 1e9)
+    # print('random_state: {0}'.format(random_state))
+    # random_state fixed to 0 for reproducibility
+    skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
+
+    clf = LogisticRegression()
+
+    gs = GridSearchCV(
+        clf,
+        param_grid={'C': Cs, 'penalty': ['l1'], 'tol': [1e-10]},
+        cv=skf,
+        scoring='neg_log_loss',
+        n_jobs=80,
+        verbose=1,
+        refit=False)
+
+    gs.fit(df_trva[RSEM_GENES].values, df_trva.label_enc.values)
+    return gs
+
+
+def generate_df_cv_master(gs):
+    """for large master models"""
+    # Cs = gs.param_grid[0]['C']
+    Cs = gs.param_grid['C']
+
+    cv_scores = []
+    for i in range(gs.n_splits_):
+        for k, j in enumerate(gs.cv_results_['split{0}_test_score'.format(i)]):
+            # -j: convert neg_logloss to logloss
+            cv_scores.append([CS[k], -j])
+    cv_scores = np.array(cv_scores)
+    return pd.DataFrame(cv_scores, columns=['c_val', 'logloss'])
+    return df_cv
+
