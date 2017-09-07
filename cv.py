@@ -171,8 +171,6 @@ def generate_df_cv_master(gs):
     for i in range(gs.n_splits_):
         for k, j in enumerate(gs.cv_results_['split{0}_test_score'.format(i)]):
             # -j: convert neg_logloss to logloss
-            cv_scores.append([CS[k], -j])
+            cv_scores.append([Cs[k], -j])
     cv_scores = np.array(cv_scores)
     return pd.DataFrame(cv_scores, columns=['c_val', 'logloss'])
-    return df_cv
-
